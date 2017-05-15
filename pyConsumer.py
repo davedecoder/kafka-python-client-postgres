@@ -25,7 +25,7 @@ class PyConsumer(PyClient):
         self.cur = None
         self.conn = None
         self.assignment_dict = dict()
-        self.createDBConn()
+        #self.createDBConn()
 
     def createDBConn (self):
         try:
@@ -147,9 +147,9 @@ class PyConsumer(PyClient):
         if msg.value():
             msgValue = msg.value().decode('utf-8')
             if len(msgValue) > 0 :
-                #print('Received message: %s' % msgValue)
+                print('Received message: %s' % msgValue)
                 jsonMsg = json.loads(msgValue)                
-                self.insertToDB(jsonMsg)
+                #self.insertToDB(jsonMsg)
 
         if msg.error():
             if msg.error().code() == KafkaError._PARTITION_EOF:
