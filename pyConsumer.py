@@ -25,14 +25,29 @@ class PyConsumer(PyClient):
         self.cur = None
         self.conn = None
         self.assignment_dict = dict()
-        #self.createDBConn()
+        self.createDBConn()
 
     def createDBConn (self):
         try:
-            self.conn = psycopg2.connect("dbname= 'flowresult' user= 'tester' host='localhost' password='tester_password'")
-            
-        except psycopg2.OperationalError as e:
-            self.dbg("UNABLE TO CONNECT TO DB")
+            with open('dbConfig.json') as dbConfig:
+                d = json.load(dbConfig)
+                try:
+                    dbname      = d['dbname']
+                    user        = d['user']
+                    host        = d['host']
+                    password    = d['password']           
+                    try:
+                        self.conn = psycopg2.connect("dbname= '" + dbname + "' user= '" + user + "' host='"+host+"' password='" + password + "'")
+                        
+                    except psycopg2.OperationalError as e:
+                        self.dbg("UNABLE TO CONNECT TO DB")
+                        self.dbg(e)         
+                        self.sig_term()
+                    
+                except:
+                    self.dbg("PARSING JSON ERROR ")
+        except IOError:
+            self.dbg("UNABLE TO OPEN DBCONFIG")
             self.dbg(e)         
             self.sig_term()
 
@@ -121,7 +136,7 @@ class PyConsumer(PyClient):
             result_end      = jsonMsg['result_end']
             flow_version    = jsonMsg['flow_version']
             flow_uuid       = jsonMsg['flow_uuid']
-            answers         = json.dumps(jsonMsg['answers'])
+            answer         = json.dumps(jsonMsg['answer'])
             geo             = jsonMsg['geo']
             event_uuid      = jsonMsg['event_uuid']
             time_stamp      = datetime.now()            
@@ -132,7 +147,7 @@ class PyConsumer(PyClient):
 
         try:
             self.cur = self.conn.cursor()
-            self.cur.execute("INSERT INTO flow_item_result (target_id, uuid, parent_uuid, question_uuid, result_start, result_end, flow_version, flow_uuid, answers, geo, event_uuid, time_stamp) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (target_id, uuid, parent_uuid, question_uuid, result_start, result_end, flow_version, flow_uuid, answers, geo, event_uuid, time_stamp))
+            self.cur.execute("INSERT INTO flow_item_result (target_id, uuid, parent_uuid, question_uuid, result_start, result_end, flow_version, flow_uuid, answer, geo, event_uuid, time_stamp) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (target_id, uuid, parent_uuid, question_uuid, result_start, result_end, flow_version, flow_uuid, answer, geo, event_uuid, time_stamp))
         except psycopg2.Error as e:
             self.dbg("POSTGRES ERROR: " + e.diag.severity)
         finally:
