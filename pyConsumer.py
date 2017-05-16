@@ -27,27 +27,18 @@ class PyConsumer(PyClient):
         self.assignment_dict = dict()
         self.createDBConn()
 
+    def getDBSettings(self):
+        with open('dbSettings.json') as json_data:
+            d = json.load(json_data)
+            return d
+
     def createDBConn (self):
+        db = self.getDBSettings()
         try:
-            with open('dbConfig.json') as dbConfig:
-                d = json.load(dbConfig)
-                try:
-                    dbname      = d['dbname']
-                    user        = d['user']
-                    host        = d['host']
-                    password    = d['password']           
-                    try:
-                        self.conn = psycopg2.connect("dbname= '" + dbname + "' user= '" + user + "' host='"+host+"' password='" + password + "'")
-                        
-                    except psycopg2.OperationalError as e:
-                        self.dbg("UNABLE TO CONNECT TO DB")
-                        self.dbg(e)         
-                        self.sig_term()
-                    
-                except:
-                    self.dbg("PARSING JSON ERROR ")
-        except IOError:
-            self.dbg("UNABLE TO OPEN DBCONFIG")
+            self.conn = psycopg2.connect("dbname= '" + db['name'] + "' user= '" + db['user'] + "' host='" + db['host'] + "' password='" + db['password'] +"'")
+            
+        except psycopg2.OperationalError as e:
+            self.dbg("UNABLE TO CONNECT TO DB")
             self.dbg(e)         
             self.sig_term()
 
@@ -126,34 +117,36 @@ class PyConsumer(PyClient):
         self.consumed_msgs_at_last_commit = self.consumed_msgs
 
     def insertToDB (self, jsonMsg):
-        
         try:
-            target_id       = jsonMsg['target_id']
-            uuid            = jsonMsg['uuid']
-            parent_uuid     = jsonMsg['parent_uuid']
-            question_uuid   = jsonMsg['question_uuid']
-            result_start    = jsonMsg['result_start']
-            result_end      = jsonMsg['result_end']
-            flow_version    = jsonMsg['flow_version']
-            flow_uuid       = jsonMsg['flow_uuid']
-            answer         = json.dumps(jsonMsg['answer'])
-            geo             = jsonMsg['geo']
-            event_uuid      = jsonMsg['event_uuid']
-            time_stamp      = datetime.now()            
-            
+            uuid                = jsonMsg['uuid']
+            target_id           = jsonMsg['target_id']
+            target_type         = jsonMsg['target_type']
+            parent_uuid         = jsonMsg['parent_uuid']
+            question_uuid       = jsonMsg['question_uuid']
+            result_start        = jsonMsg['result_start']
+            result_end          = jsonMsg['result_end']
+            flow_version        = jsonMsg['flow_version']
+            flow_uuid           = jsonMsg['flow_uuid']
+            geo                 = jsonMsg['geo']
+            answer              = json.dumps(jsonMsg['answer'])
+            event_uuid          = jsonMsg['event_uuid']
+            time_stamp          = datetime.now()
+            filling_mechanism   = jsonMsg['filling_mechanism']
+            actor_id            = jsonMsg['actor_id']
+
+            try:
+                self.cur = self.conn.cursor()
+                self.cur.execute("INSERT INTO lamorena.kflows_flowitemresult (uuid, target_id, target_type, parent_uuid, question_uuid, result_start,result_end,flow_version,flow_uuid,geo,answer,event_uuid,time_stamp,filling_mechanism,actor_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (uuid, target_id, target_type, parent_uuid,question_uuid,result_start,result_end,flow_version,flow_uuid,geo,answer,event_uuid,time_stamp,filling_mechanism,actor_id,))
+            except psycopg2.OperationalError as e:
+                print('Unable to connect!\n{0}').format(e)
+                self.dbg("POSTGRES ERROR")
+            finally:
+                self.conn.commit()
+                self.cur.close()
+           
         except:
             self.dbg("PARSING JSON ERROR ")
             return
-
-        try:
-            self.cur = self.conn.cursor()
-            self.cur.execute("INSERT INTO flow_item_result (target_id, uuid, parent_uuid, question_uuid, result_start, result_end, flow_version, flow_uuid, answer, geo, event_uuid, time_stamp) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (target_id, uuid, parent_uuid, question_uuid, result_start, result_end, flow_version, flow_uuid, answer, geo, event_uuid, time_stamp))
-        except psycopg2.Error as e:
-            self.dbg("POSTGRES ERROR: " + e.diag.severity)
-        finally:
-            self.conn.commit()
-            self.cur.close()
-        
 
 
     def msg_consume (self, msg):
@@ -162,9 +155,9 @@ class PyConsumer(PyClient):
         if msg.value():
             msgValue = msg.value().decode('utf-8')
             if len(msgValue) > 0 :
-                print('Received message: %s' % msgValue)
+                #print('Received message: %s' % msgValue)
                 jsonMsg = json.loads(msgValue)                
-                #self.insertToDB(jsonMsg)
+                self.insertToDB(jsonMsg)
 
         if msg.error():
             if msg.error().code() == KafkaError._PARTITION_EOF:
